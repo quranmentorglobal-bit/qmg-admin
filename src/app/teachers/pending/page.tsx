@@ -49,26 +49,49 @@ export default function TeacherApplicationsPage() {
   }
 
   async function handleAction(id: string, userId: string, action: 'approved' | 'rejected', reason?: string) {
-    setActionLoading(id)
-    const supabase = createClient()
+  setActionLoading(id)
+  const supabase = createClient()
 
-    await (supabase.from('teacher_profiles') as any).update({
-      status: action,
-      rejection_reason: reason || null,
-    }).eq('id', id)
+  await (supabase.from('teacher_profiles') as any).update({
+    status: action,
+    rejection_reason: reason || null,
+  }).eq('id', id)
 
-    await (supabase.from('profiles') as any).update({
-      is_active: action === 'approved'
-    }).eq('id', userId)
+  await (supabase.from('profiles') as any).update({
+    is_active: action === 'approved'
+  }).eq('id', userId)
 
-    showToast(action === 'approved' ? '✅ Teacher approved!' : '❌ Application rejected.')
-    setSelected(null)
-    setShowRejectModal(null)
-    setRejectionReason('')
-    await fetchApplications()
-    setActionLoading(null)
+  // Get teacher details for email
+  const { data: prof } = await supabase
+    .from('profiles')
+    .select('first_name, last_name, email')
+    .eq('id', userId)
+    .single() as any
+
+  if (prof) {
+    try {
+      await fetch(`${process.env.NEXT_PUBLIC_FRONTEND_URL}/api/email`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          type: action,
+          teacherName: `${prof.first_name} ${prof.last_name}`,
+          teacherEmail: prof.email,
+          reason: reason || '',
+        }),
+      })
+    } catch (e) {
+      console.error('Email notification failed:', e)
+    }
   }
 
+  showToast(action === 'approved' ? '✅ Teacher approved & notified!' : '❌ Application rejected & teacher notified.')
+  setSelected(null)
+  setShowRejectModal(null)
+  setRejectionReason('')
+  await fetchApplications()
+  setActionLoading(null)
+}
   function showToast(msg: string) {
     setToast(msg)
     setTimeout(() => setToast(''), 3000)
