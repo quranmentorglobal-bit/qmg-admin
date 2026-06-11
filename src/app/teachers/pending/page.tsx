@@ -2,7 +2,7 @@
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import AdminLayout from '@/components/AdminLayout'
-import { CheckCircle, XCircle, Clock, Star, Globe, DollarSign } from 'lucide-react'
+import { CheckCircle, XCircle, Clock, Globe, DollarSign } from 'lucide-react'
 
 type Application = {
   id: string
@@ -30,6 +30,8 @@ export default function TeacherApplicationsPage() {
   const [loading, setLoading] = useState(true)
   const [actionLoading, setActionLoading] = useState<string | null>(null)
   const [selected, setSelected] = useState<Application | null>(null)
+  const [showRejectModal, setShowRejectModal] = useState<Application | null>(null)
+  const [rejectionReason, setRejectionReason] = useState('')
   const [toast, setToast] = useState('')
 
   useEffect(() => { fetchApplications() }, [])
@@ -46,16 +48,23 @@ export default function TeacherApplicationsPage() {
     setLoading(false)
   }
 
-  async function handleAction(id: string, userId: string, action: 'approved' | 'rejected') {
+  async function handleAction(id: string, userId: string, action: 'approved' | 'rejected', reason?: string) {
     setActionLoading(id)
     const supabase = createClient()
-    await (supabase.from('teacher_profiles') as any).update({ status: action }).eq('id', id)
+
+    await (supabase.from('teacher_profiles') as any).update({
+      status: action,
+      rejection_reason: reason || null,
+    }).eq('id', id)
+
     await (supabase.from('profiles') as any).update({
       is_active: action === 'approved'
     }).eq('id', userId)
 
     showToast(action === 'approved' ? '✅ Teacher approved!' : '❌ Application rejected.')
     setSelected(null)
+    setShowRejectModal(null)
+    setRejectionReason('')
     await fetchApplications()
     setActionLoading(null)
   }
@@ -63,6 +72,12 @@ export default function TeacherApplicationsPage() {
   function showToast(msg: string) {
     setToast(msg)
     setTimeout(() => setToast(''), 3000)
+  }
+
+  function openRejectModal(app: Application) {
+    setRejectionReason('')
+    setShowRejectModal(app)
+    setSelected(null)
   }
 
   return (
@@ -96,6 +111,7 @@ export default function TeacherApplicationsPage() {
             {applications.map(app => (
               <div key={app.id}
                 className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100 flex flex-col sm:flex-row sm:items-center gap-4 transition-all hover:shadow-md">
+
                 {/* Avatar */}
                 <div className="w-12 h-12 rounded-xl flex items-center justify-center text-white font-bold text-lg flex-shrink-0"
                   style={{ background: 'linear-gradient(135deg, #1B5E37, #0D3D20)' }}>
@@ -138,7 +154,7 @@ export default function TeacherApplicationsPage() {
                     <CheckCircle size={15} className="inline mr-1" />Approve
                   </button>
                   <button
-                    onClick={() => handleAction(app.id, app.user_id, 'rejected')}
+                    onClick={() => openRejectModal(app)}
                     disabled={actionLoading === app.id}
                     className="px-4 py-2 rounded-xl text-sm font-semibold text-white transition-all hover:opacity-90 disabled:opacity-60"
                     style={{ background: '#DC2626' }}>
@@ -236,7 +252,7 @@ export default function TeacherApplicationsPage() {
                     ✅ Approve
                   </button>
                   <button
-                    onClick={() => handleAction(selected.id, selected.user_id, 'rejected')}
+                    onClick={() => openRejectModal(selected)}
                     disabled={!!actionLoading}
                     className="flex-1 py-3 rounded-xl text-white font-bold text-sm transition-all hover:opacity-90"
                     style={{ background: '#DC2626' }}>
@@ -247,6 +263,56 @@ export default function TeacherApplicationsPage() {
             </div>
           </div>
         )}
+
+        {/* Reject Reason Modal */}
+        {showRejectModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-lg font-bold text-ink">Reject Application</h2>
+                <button
+                  onClick={() => { setShowRejectModal(null); setRejectionReason('') }}
+                  className="w-8 h-8 rounded-lg bg-gray-100 flex items-center justify-center text-ink-light hover:bg-gray-200 text-lg">
+                  ×
+                </button>
+              </div>
+
+              <p className="text-sm text-ink-light mb-1">
+                Rejecting: <strong className="text-ink">{showRejectModal.profiles?.first_name} {showRejectModal.profiles?.last_name}</strong>
+              </p>
+              <p className="text-sm text-ink-light mb-4">
+                Please give a reason so the teacher knows what to fix and can resubmit.
+              </p>
+
+              <textarea
+                value={rejectionReason}
+                onChange={e => setRejectionReason(e.target.value)}
+                rows={4}
+                placeholder="e.g. Your profile photo is unclear. Please upload a professional photo showing your face clearly. Also please add more detail to your bio."
+                className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm outline-none resize-none mb-2 leading-relaxed"
+              />
+              <p className="text-xs text-right mb-4" style={{ color: '#9CA3AF' }}>
+                {rejectionReason.length} characters
+              </p>
+
+              <div className="flex gap-3">
+                <button
+                  onClick={() => { setShowRejectModal(null); setRejectionReason('') }}
+                  className="flex-1 py-3 rounded-xl text-sm font-semibold border border-gray-200 text-ink-mid hover:bg-gray-50 transition-all">
+                  Cancel
+                </button>
+                <button
+                  onClick={() => handleAction(showRejectModal.id, showRejectModal.user_id, 'rejected', rejectionReason)}
+                  disabled={!rejectionReason.trim() || !!actionLoading}
+                  className="flex-1 py-3 rounded-xl text-white text-sm font-bold transition-all hover:opacity-90 disabled:opacity-50"
+                  style={{ background: '#DC2626' }}>
+                  {actionLoading ? 'Rejecting...' : 'Confirm Rejection'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
       </div>
     </AdminLayout>
   )
