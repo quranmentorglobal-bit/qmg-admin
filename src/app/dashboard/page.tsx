@@ -28,25 +28,31 @@ export default function DashboardPage() {
     totalStudents: 0, totalTeachers: 0, totalBookings: 0,
     totalRevenue: 0, pendingTeachers: 0, pendingReviews: 0,
   })
-  const [adminName, setAdminName] = useState('')
+  const [adminName, setAdminName] = useState('Admin')
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     async function load() {
-      const supabase = createClient()
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) return
-
-      const { data: profile } = await supabase
-        .from('profiles').select('first_name').eq('id', user.id).single()
-      setAdminName((profile as any)?.first_name || 'Admin')
-
-      // Fetch stats from server-side API route (uses service role key — bypasses RLS)
+      // Fetch stats immediately — no user check needed, API route handles auth
       const res = await fetch('/api/stats')
       if (res.ok) {
         const data = await res.json()
         setStats(data)
       }
+
+      // Get admin name separately — don't block stats on this
+      try {
+        const supabase = createClient()
+        const { data: { user } } = await supabase.auth.getUser()
+        if (user) {
+          const { data: profile } = await supabase
+            .from('profiles').select('first_name').eq('id', user.id).single()
+          setAdminName((profile as any)?.first_name || 'Admin')
+        }
+      } catch (e) {
+        // admin name is optional — fail silently
+      }
+
       setLoading(false)
     }
     load().catch(() => setLoading(false))
