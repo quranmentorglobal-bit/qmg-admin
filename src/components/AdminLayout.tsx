@@ -4,7 +4,8 @@ import { useRouter, usePathname } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import {
   LayoutDashboard, Users, GraduationCap, BookOpen,
-  Star, Settings, LogOut, Menu, X, ChevronRight, ClipboardList
+  Star, Settings, LogOut, Menu, X, ChevronRight, ClipboardList,
+  MessageSquare, CreditCard
 } from 'lucide-react'
 
 const NAV_ITEMS = [
