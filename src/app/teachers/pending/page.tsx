@@ -1,6 +1,6 @@
 'use client'
 import { useEffect, useState } from 'react'
-import { createClient } from '@/lib/supabase/client'
+// Admin data fetched via API routes that use service role key
 import AdminLayout from '@/components/AdminLayout'
 import { CheckCircle, XCircle, Clock, Globe, DollarSign } from 'lucide-react'
 
@@ -37,29 +37,23 @@ export default function TeacherApplicationsPage() {
   useEffect(() => { fetchApplications() }, [])
 
   async function fetchApplications() {
-    const supabase = createClient()
-    const { data } = await supabase
-      .from('teacher_profiles')
-      .select('*, profiles(first_name, last_name, email, country, bio, phone)')
-      .eq('status', 'pending')
-      .order('id', { ascending: false }) as any
-
-    setApplications(data || [])
+    const res = await fetch('/api/pending-teachers')
+    if (res.ok) {
+      const data = await res.json()
+      setApplications(data || [])
+    }
     setLoading(false)
   }
 
   async function handleAction(id: string, userId: string, action: 'approved' | 'rejected', reason?: string) {
   setActionLoading(id)
-  const supabase = createClient()
 
-  await (supabase.from('teacher_profiles') as any).update({
-    status: action,
-    rejection_reason: reason || null,
-  }).eq('id', id)
-
-  await (supabase.from('profiles') as any).update({
-    is_active: action === 'approved'
-  }).eq('id', userId)
+  // Use API route to bypass RLS
+  await fetch('/api/review-teacher', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ id, userId, action, reason }),
+  })
 
   // Get teacher details for email
   const { data: prof } = await supabase
